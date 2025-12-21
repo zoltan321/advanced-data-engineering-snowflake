@@ -1,14 +1,14 @@
 -- Create view that adds weather data for cities where Tasty Bytes operates
 CREATE OR REPLACE VIEW {{env}}_tasty_bytes.harmonized.daily_weather_v
 COMMENT = 'Weather Source Daily History filtered to Tasty Bytes supported Cities'
-    AS
+AS
 SELECT
     hd.*,
     TO_VARCHAR(hd.date_valid_std, 'YYYY-MM') AS yyyy_mm,
     pc.city_name AS city,
     c.country AS country_desc
-FROM WEATHER_SOURCE_LLC_FROSTBYTE.onpoint_id.history_day hd
-JOIN WEATHER_SOURCE_LLC_FROSTBYTE.onpoint_id.postal_codes pc
+FROM FROSTBYTE_WEATHERSOURCE.ONPOINT_ID.HISTORY_DAY hd
+JOIN FROSTBYTE_WEATHERSOURCE.ONPOINT_ID.POSTAL_CODES pc
     ON pc.postal_code = hd.postal_code
     AND pc.country = hd.country
 JOIN {{env}}_tasty_bytes.raw_pos.country c
@@ -28,19 +28,18 @@ SELECT
     ROUND(AVG(fd.tot_precipitation_in),2) AS avg_precipitation_inches,
     ROUND(AVG(analytics.inch_to_millimeter(fd.tot_precipitation_in)),2) AS avg_precipitation_millimeters,
     MAX(fd.max_wind_speed_100m_mph) AS max_wind_speed_100m_mph
-FROM harmonized.daily_weather_v fd
-LEFT JOIN harmonized.orders_v odv
+FROM {{env}}_tasty_bytes.harmonized.daily_weather_v fd
+LEFT JOIN {{env}}_tasty_bytes.harmonized.orders_v odv
     ON fd.date_valid_std = DATE(odv.order_ts)
     AND fd.city_name = odv.primary_city
     AND fd.country_desc = odv.country
-WHERE 1=1
-    AND fd.country_desc = 'Germany'
-    AND fd.city = 'Hamburg'
-    AND fd.yyyy_mm = '2022-02'
+WHERE fd.country_desc = 'Germany'
+  AND fd.city = 'Hamburg'
+  AND fd.yyyy_mm = '2022-02'
 GROUP BY fd.date_valid_std, fd.city_name, fd.country_desc
 ORDER BY fd.date_valid_std ASC;
 
--- Expand tracking to all cities and deploy view with this new information
+-- Expand tracking to all cities
 CREATE OR REPLACE VIEW {{env}}_tasty_bytes.analytics.daily_city_metrics_v
 COMMENT = 'Daily Weather Metrics and Orders Data'
 AS
@@ -63,15 +62,14 @@ GROUP BY fd.date_valid_std, fd.city_name, fd.country_desc;
 
 -- Create a view that tracks windspeed for Hamburg, Germany
 CREATE OR REPLACE VIEW {{env}}_tasty_bytes.harmonized.windspeed_hamburg
-    AS
+AS
 SELECT
     dw.country_desc,
     dw.city_name,
     dw.date_valid_std,
     MAX(dw.max_wind_speed_100m_mph) AS max_wind_speed_100m_mph
-FROM harmonized.daily_weather_v dw
-WHERE 1=1
-    AND dw.country_desc IN ('Germany')
-    AND dw.city_name = 'Hamburg'
+FROM {{env}}_tasty_bytes.harmonized.daily_weather_v dw
+WHERE dw.country_desc = 'Germany'
+  AND dw.city_name = 'Hamburg'
 GROUP BY dw.country_desc, dw.city_name, dw.date_valid_std
 ORDER BY dw.date_valid_std DESC;
